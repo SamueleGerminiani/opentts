@@ -18,6 +18,7 @@ const defaults = {
   skip: { figure: true, table: true, caption: false, formula: true, margin: true },
   cites: true,
   parens: false,
+  autoScroll: true,
   zoom: 900,
 };
 let settings = structuredClone(defaults);
@@ -524,7 +525,7 @@ function paint() {
 }
 
 function scrollToCurrent(force = false) {
-  if (!cur || (!follow && !force)) return;
+  if (!cur || (!(follow && settings.autoScroll) && !force)) return;
   const el = els[cur.p]?.[cur.i]?.[0] || pagesEl.children[cur.p];
   if (!el) return;
   const r = el.getBoundingClientRect();
@@ -559,7 +560,7 @@ viewer.addEventListener("scroll", () => {
 });
 // The listener scrolled away on purpose: stop pulling the view back.
 function userScrolled() {
-  if (state === "idle" || !follow) return;
+  if (state === "idle" || !follow || !settings.autoScroll) return;
   follow = false;
   $("follow").hidden = false;
 }
@@ -569,6 +570,19 @@ $("follow").onclick = () => {
   follow = true;
   $("follow").hidden = true;
   scrollToCurrent(true);
+};
+
+// "Follow" toggle: whether the view scrolls along with the reading at all.
+function applyAutoScroll() {
+  $("autoScroll").setAttribute("aria-pressed", settings.autoScroll ? "true" : "false");
+}
+$("autoScroll").onclick = () => {
+  settings.autoScroll = !settings.autoScroll;
+  saveSettings();
+  applyAutoScroll();
+  follow = true;
+  $("follow").hidden = true;
+  if (settings.autoScroll) scrollToCurrent(true);
 };
 
 // ---------------------------------------------------------------- page interaction
@@ -788,6 +802,7 @@ setState("idle");
 setSpeed(settings.speed);
 setZoom(settings.zoom);
 applySkip();
+applyAutoScroll();
 loadVoices();
 (async () => {
   const last = localStorage.getItem("opentts.last");

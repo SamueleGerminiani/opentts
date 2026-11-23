@@ -28,6 +28,8 @@ From a terminal (any platform): `./run.sh`, which runs until you press Ctrl-C.
 - **Open PDF** (or drop a file on the window).
 - **Click any sentence** to start reading from there. The sentence being read is highlighted and kept in view.
 - **Play / pause**, **stop**, previous / next sentence.
+- **Follow** button: when on (the default), the PDF scrolls automatically to keep the sentence being read
+  in view. Scrolling by hand pauses this until you press "Back to reading position" or click a sentence.
 - **Speed** slider, 0.5× to 3×, changes immediately (pitch is preserved).
 - **Voice** menu: English (US/UK), Italian, French, Spanish, Portuguese. The voice
   switches to the document's language automatically and remembers your choice per language.

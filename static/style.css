@@ -55,6 +55,8 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .icon.primary { width: 46px; background: var(--accent); color: var(--accent-fg); }
 .icon.primary svg { fill: currentColor; }
 .icon.primary:hover { filter: brightness(1.1); background: var(--accent); }
+.toggle { color: var(--muted); }
+.toggle[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--ctl)); }
 button:disabled { opacity: .4; cursor: default; }
 button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
