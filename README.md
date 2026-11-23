@@ -2,18 +2,26 @@
 
 A small web app that reads PDFs with a neural voice. Everything runs locally; nothing is sent to a cloud service.
 
+## Install
+
+```bash
+git clone https://github.com/SamueleGerminiani/opentts.git
+cd opentts
+./install.sh
+```
+
+The script installs [uv](https://docs.astral.sh/uv/) if it is missing (it asks first), sets up
+Python 3.12 and the dependencies in `.venv`, downloads the models (~370 MB) into `models/`, and on
+macOS builds the **OpenTTS** app in `~/Applications`. It is safe to run again.
+
 ## Run
 
-Click **OpenTTS** in `~/Applications` (also in Launchpad and Spotlight; drag it to the Dock to keep it there).
-It starts the local server if needed and opens the app in your browser. The server stops by itself
-a few seconds after the last OpenTTS tab is closed; its log is `~/Library/Logs/OpenTTS.log`.
+On macOS, click **OpenTTS** in `~/Applications` (also in Launchpad and Spotlight; drag it to the Dock
+to keep it there). It starts the local server if needed and opens the app in your browser. The server
+stops by itself a few seconds after the last OpenTTS tab is closed; its log is `~/Library/Logs/OpenTTS.log`.
+If the folder is moved, rebuild the launcher with `./macos/make_app.sh`.
 
-To rebuild the icon/launcher (needed if this folder is moved): `./macos/make_app.sh`.
-
-From a terminal instead: `./run.sh` (runs until you press Ctrl-C).
-
-Requires [uv](https://docs.astral.sh/uv/) for the first setup, which installs the Python
-dependencies and downloads the models (~370 MB) into `models/`.
+From a terminal (any platform): `./run.sh`, which runs until you press Ctrl-C.
 
 ## Use
 

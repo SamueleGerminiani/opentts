@@ -65,3 +65,8 @@ LAUNCH
 chmod +x "$APP/Contents/MacOS/OpenTTS"
 touch "$APP"
 echo "Built $APP"
+printf '\n\033[33mNote:\033[0m OpenTTS.app is only a launcher, not a self-contained app.\n'
+printf '  It points to this folder, which holds the program, Python environment and models:\n'
+printf '    %s\n' "$PROJECT"
+printf '  - Do not delete this folder; if you move it, run macos/make_app.sh again from the new location.\n'
+printf '  - Copying OpenTTS.app to another Mac will not work; clone the repository there and run ./install.sh.\n'
