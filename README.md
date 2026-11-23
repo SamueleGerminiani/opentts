@@ -1,7 +1,6 @@
 # OpenTTS — read PDFs aloud, locally
 
-A small web app that reads PDFs with a neural voice. Everything runs on this
-machine; nothing is sent to a cloud service.
+A small web app that reads PDFs with a neural voice. Everything runs locally; nothing is sent to a cloud service.
 
 ## Run
 
