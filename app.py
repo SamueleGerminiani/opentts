@@ -274,8 +274,38 @@ _FOOTNOTE_MARK = re.compile(r"(?<=[a-zà-ÿ]{3})([.,;:!?][\"”’)]*)\d{1,3}(?=
 _URL = re.compile(r"(?:https?://|www\.)\S+")
 
 
-def speakable(text: str, lang: str, strip_citations: bool) -> str:
+_LABEL = re.compile(r"[A-Za-z0-9]{1,3}")
+_OPENERS = " \t\n[\"'“‘«—–-"
+
+
+def strip_parentheses(text: str) -> str:
+    """Drop asides in round brackets, nested ones included.
+
+    Kept on purpose: brackets glued to a word, as in f(x) or word(s), and short
+    labels such as (3), (A) or (ii), which are references rather than asides.
+    Unbalanced brackets are left alone.
+    """
+    out, i, n = [], 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "(" and (i == 0 or text[i - 1] in _OPENERS):
+            depth, j = 1, i + 1
+            while j < n and depth:
+                depth += (text[j] == "(") - (text[j] == ")")
+                j += 1
+            if depth == 0 and not _LABEL.fullmatch(text[i + 1 : j - 1]):
+                out.append(" ")
+                i = j
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def speakable(text: str, lang: str, strip_citations: bool, strip_parens: bool = False) -> str:
     """Turn a sentence as printed into something pleasant to listen to."""
+    if strip_parens:
+        text = strip_parentheses(text)
     if strip_citations:
         text = _CITE.sub("", text)
         text = _FOOTNOTE_MARK.sub(r"\1", text)
@@ -312,6 +342,7 @@ class TTSRequest(BaseModel):
     voice: str = "af_heart"
     pause: float = 0.12  # seconds of silence appended after the sentence
     strip_citations: bool = True
+    strip_parens: bool = False  # drop asides in (round brackets)
 
 
 @app.get("/api/voices")
@@ -337,7 +368,7 @@ def voices():
 async def tts(req: TTSRequest, request: Request):
     if not req.voice or req.voice[0] not in LANGS:
         raise HTTPException(400, "unknown voice")
-    text = speakable(req.text[:2000], LANGS[req.voice[0]][1], req.strip_citations)
+    text = speakable(req.text[:2000], LANGS[req.voice[0]][1], req.strip_citations, req.strip_parens)
     if not re.search(r"\w", text):
         return Response(status_code=204)  # nothing pronounceable
     pause = min(max(req.pause, 0.0), 2.0)

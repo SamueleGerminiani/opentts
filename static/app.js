@@ -17,6 +17,7 @@ const defaults = {
   voiceByLang: {},
   skip: { figure: true, table: true, caption: false, formula: true, margin: true },
   cites: true,
+  parens: false,
   zoom: 900,
 };
 let settings = structuredClone(defaults);
@@ -299,7 +300,7 @@ const audioCache = new Map(); // request key -> {promise, ctrl, url}
 const AUDIO_CACHE_MAX = 40;
 
 function fetchAudio(u) {
-  const k = [settings.voice, settings.cites ? 1 : 0, u.pause, u.text].join("|");
+  const k = [settings.voice, settings.cites ? 1 : 0, settings.parens ? 1 : 0, u.pause, u.text].join("|");
   let entry = audioCache.get(k);
   if (entry) return entry.promise;
   const ctrl = new AbortController();
@@ -307,7 +308,7 @@ function fetchAudio(u) {
   entry.promise = fetch("/api/tts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: u.text, voice: settings.voice, pause: u.pause, strip_citations: settings.cites }),
+    body: JSON.stringify({ text: u.text, voice: settings.voice, pause: u.pause, strip_citations: settings.cites, strip_parens: settings.parens }),
     signal: ctrl.signal,
   })
     .then(async (r) => {
@@ -629,6 +630,7 @@ function applySkip() {
     pagesEl.classList.toggle("skip-" + k, !!settings.skip[k]);
     if (settings.skip[k]) n++;
   }
+  n += (settings.cites ? 1 : 0) + (settings.parens ? 1 : 0);
   $("ignoreCount").textContent = n ? `(${n})` : "";
 }
 for (const box of document.querySelectorAll("[data-skip]")) {
@@ -644,6 +646,14 @@ $("cites").checked = settings.cites;
 $("cites").onchange = (e) => {
   settings.cites = e.target.checked;
   saveSettings();
+  applySkip();
+};
+$("parens").checked = settings.parens;
+$("parens").onchange = (e) => {
+  settings.parens = e.target.checked;
+  saveSettings();
+  applySkip();
+  dropPending();
 };
 document.addEventListener("click", (e) => {
   if (!$("ignore").contains(e.target)) $("ignore").open = false;

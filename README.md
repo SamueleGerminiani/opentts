@@ -32,7 +32,7 @@ From a terminal (any platform): `./run.sh`, which runs until you press Ctrl-C.
 - **Voice** menu: English (US/UK), Italian, French, Spanish, Portuguese. The voice
   switches to the document's language automatically and remembers your choice per language.
 - **Ignore** menu: figures, tables, captions, displayed formulas, headers/footers/footnotes,
-  citation marks like `[12]`. Ignored areas are shaded on the page; clicking one still reads it.
+  citation marks like `[12]`, text in `(round brackets)`. Ignored areas are shaded on the page; clicking one still reads it.
 - The reading position of each document is remembered.
 
 Keyboard: `Space` play/pause · `←` `→` previous/next sentence · `Esc` stop · `-` `+` speed.
