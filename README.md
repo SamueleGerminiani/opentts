@@ -48,3 +48,7 @@ Keyboard: `Space` play/pause · `←` `→` previous/next sentence · `Esc` stop
 - Scanned PDFs without a text layer need OCR first (e.g. `ocrmypdf in.pdf out.pdf`).
 - Inline maths is read as extracted text, which can sound odd.
 - Japanese and Chinese Kokoro voices are not enabled.
+
+## License
+
+[GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only).
