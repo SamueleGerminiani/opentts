@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenTTS — PDF reader</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233157d5'/%3E%3Cpath d='M9 7l9 5-9 5z' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header id="bar">
+  <button id="open" class="btn" title="Open a PDF (or drop one anywhere)">
+    <svg viewBox="0 0 24 24"><path d="M4 19V6a1 1 0 0 1 1-1h4.5l2 2H19a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>
+    <span>Open PDF</span>
+  </button>
+  <input id="file" type="file" accept="application/pdf,.pdf" hidden>
+
+  <div class="group transport">
+    <button id="prev" class="icon" title="Previous sentence (←)" disabled>
+      <svg viewBox="0 0 24 24"><path d="M7 6v12M18 6l-8 6 8 6z"/></svg>
+    </button>
+    <button id="play" class="icon primary" title="Play / pause (Space)" disabled>
+      <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>
+      <svg class="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>
+      <span class="spinner"></span>
+    </button>
+    <button id="stop" class="icon" title="Stop (Esc)" disabled>
+      <svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></svg>
+    </button>
+    <button id="next" class="icon" title="Next sentence (→)" disabled>
+      <svg viewBox="0 0 24 24"><path d="M17 6v12M6 6l8 6-8 6z"/></svg>
+    </button>
+  </div>
+
+  <div class="group speed" title="Reading speed ( − / + )">
+    <button id="slower" class="icon small" aria-label="Slower">−</button>
+    <input id="speed" type="range" min="0.5" max="3" step="0.05" value="1" aria-label="Speed">
+    <button id="faster" class="icon small" aria-label="Faster">+</button>
+    <button id="speedLabel" class="value" title="Reset to 1×">1.00×</button>
+  </div>
+
+  <label class="group voice" title="Voice">
+    <svg viewBox="0 0 24 24"><path d="M12 4a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V7a3 3 0 0 1 3-3zM6 11.5a6 6 0 0 0 12 0M12 17.5V21"/></svg>
+    <select id="voice" aria-label="Voice"></select>
+  </label>
+
+  <details id="ignore" class="group menu">
+    <summary title="Choose what is not read aloud">Ignore <span id="ignoreCount"></span></summary>
+    <div class="panel">
+      <label><input type="checkbox" data-skip="figure"> Figures</label>
+      <label><input type="checkbox" data-skip="table"> Tables</label>
+      <label><input type="checkbox" data-skip="caption"> Figure &amp; table captions</label>
+      <label><input type="checkbox" data-skip="formula"> Displayed formulas</label>
+      <label><input type="checkbox" data-skip="margin"> Headers, footers, footnotes</label>
+      <hr>
+      <label><input type="checkbox" id="cites"> Citation marks like [12]</label>
+      <p class="hint">Ignored parts are shaded on the page. Clicking one still reads it.</p>
+    </div>
+  </details>
+
+  <div class="spacer"></div>
+
+  <div class="group zoom">
+    <button id="zoomOut" class="icon small" title="Zoom out" aria-label="Zoom out">−</button>
+    <button id="zoomIn" class="icon small" title="Zoom in" aria-label="Zoom in">+</button>
+  </div>
+  <div id="pageInfo" class="pageinfo" hidden>
+    <input id="pageNum" type="number" min="1" value="1" aria-label="Page"> / <span id="pageCount">1</span>
+  </div>
+</header>
+
+<div id="status" hidden></div>
+
+<main id="viewer">
+  <div id="empty">
+    <div class="drop">
+      <svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h6"/></svg>
+      <h1>Drop a PDF here</h1>
+      <p>or <button id="open2" class="link">choose a file</button>. Then click any sentence to start reading from there.</p>
+      <p class="hint">Everything runs on this computer: the voices (Kokoro) and the page analysis that finds figures and tables.</p>
+    </div>
+  </div>
+  <div id="pages"></div>
+</main>
+
+<button id="follow" hidden>↩ Back to reading position</button>
+<div id="toast" hidden></div>
+<audio id="audio" preload="auto"></audio>
+<script src="/static/app.js"></script>
+</body>
+</html>
