@@ -11,6 +11,8 @@ import io
 import json
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 import wave
@@ -29,7 +31,7 @@ from pydantic import BaseModel
 import pdfproc
 
 ROOT = Path(__file__).parent
-DATA = ROOT / "data"
+DATA = Path(os.environ.get("OPENTTS_DATA") or ROOT / "data").resolve()
 MODELS = ROOT / "models"
 KOKORO_MODEL = MODELS / "kokoro-v1.0.onnx"
 KOKORO_VOICES = MODELS / "voices-v1.0.bin"
@@ -152,40 +154,179 @@ def _page(doc: fitz.Document, n: int) -> fitz.Page:
     return doc[n]
 
 
+def _doc_id(raw: bytes) -> str:
+    return hashlib.sha1(raw).hexdigest()[:16]
+
+
+def _stat(path: Path) -> list[int]:
+    st = path.stat()
+    return [st.st_mtime_ns, st.st_size]
+
+
+def _public(meta: dict) -> dict:
+    """Metadata as sent to the browser: no file-system paths."""
+    out = {k: v for k, v in meta.items() if not k.startswith("source")}
+    out["tracked"] = bool(meta.get("source"))
+    return out
+
+
+def _load_meta(doc_id: str) -> dict:
+    return json.loads((_doc_dir(doc_id) / "meta.json").read_text())
+
+
+def _save_meta(meta: dict):
+    (DATA / meta["id"] / "meta.json").write_text(json.dumps(meta))
+
+
+def _opening_words(doc: fitz.Document) -> set[str]:
+    text = " ".join(doc[i].get_text() for i in range(min(2, doc.page_count)))
+    return set(re.findall(r"\w{3,}", text.lower()))
+
+
+def find_source(name: str, doc_id: str) -> Path | None:
+    """Locate on disk the file a PDF was opened from.
+
+    The browser only hands over a file's name and content, never its path, so we ask
+    Spotlight for the files with that name. The one with identical content is the
+    source. If none is identical, the file has been rewritten since it was opened:
+    then the source is the same-named file modified after the opening whose first
+    pages look most like the opened document (names like "main.pdf" are common).
+    """
+    if not shutil.which("mdfind"):
+        return None
+    try:
+        out = subprocess.run(["mdfind", "-name", name], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    stored = DATA / doc_id / "doc.pdf"
+    size, opened_at = stored.stat().st_size, stored.stat().st_mtime_ns
+    identical, newer = [], []
+    for line in out.splitlines()[:500]:
+        path = Path(line)
+        try:
+            if path.name != name or DATA in path.parents or not path.is_file():
+                continue
+            st = path.stat()
+            if st.st_size == size and _doc_id(path.read_bytes()) == doc_id:
+                identical.append((st.st_mtime_ns, path))
+            elif st.st_mtime_ns > opened_at and st.st_size > 0:
+                newer.append((st.st_mtime_ns, path))
+        except OSError:  # unreadable, or macOS denied access to that folder
+            continue
+    if identical:
+        return max(identical)[1]
+    if not newer:
+        return None
+    with _pdf_lock:
+        mine = _opening_words(_open(doc_id))
+        best, best_score = None, 0.5  # at least half of the opening words in common
+        for _, path in sorted(newer, reverse=True)[:20]:
+            try:
+                with fitz.open(path) as cand:
+                    theirs = _opening_words(cand)
+            except Exception:
+                continue
+            score = len(mine & theirs) / max(1, len(mine | theirs))
+            if score > best_score:
+                best, best_score = path, score
+    return best
+
+
+def _locate(meta: dict) -> Path | None:
+    """Find and remember the source file of a document that has none (or lost it)."""
+    meta.pop("source", None)
+    meta.pop("source_stat", None)
+    source = find_source(meta["name"], meta["id"])
+    if source is not None:
+        meta["source"] = str(source)
+        _save_meta(meta)
+    return source
+
+
+def ingest(raw: bytes, name: str) -> dict:
+    """Store a PDF (if not already known) and return its metadata."""
+    doc_id = _doc_id(raw)
+    d = DATA / doc_id
+    meta_path = d / "meta.json"
+    if meta_path.exists():
+        return json.loads(meta_path.read_text())
+    try:
+        doc = fitz.open(stream=raw, filetype="pdf")
+    except Exception:
+        raise HTTPException(400, "This file could not be opened as a PDF.")
+    if doc.needs_pass:
+        raise HTTPException(400, "Password-protected PDFs are not supported.")
+    with _pdf_lock:
+        has_text = any(doc[i].get_text("words") for i in range(min(5, doc.page_count)))
+        sizes = [[doc[i].rect.width, doc[i].rect.height] for i in range(doc.page_count)]
+        meta = {
+            "id": doc_id,
+            "name": name,
+            "pages": doc.page_count,
+            "sizes": sizes,
+            "lang": pdfproc.detect_language(doc),
+            "has_text": has_text,
+        }
+    doc.close()
+    (d / "pages").mkdir(parents=True, exist_ok=True)
+    (d / "doc.pdf").write_bytes(raw)
+    meta_path.write_text(json.dumps(meta))
+    return meta
+
+
 @app.post("/api/docs")
 def upload(file: UploadFile = File(...)):
     raw = file.file.read()
-    doc_id = hashlib.sha1(raw).hexdigest()[:16]
-    d = DATA / doc_id
-    meta_path = d / "meta.json"
-    if not meta_path.exists():
-        try:
-            doc = fitz.open(stream=raw, filetype="pdf")
-        except Exception:
-            raise HTTPException(400, "This file could not be opened as a PDF.")
-        if doc.needs_pass:
-            raise HTTPException(400, "Password-protected PDFs are not supported.")
-        with _pdf_lock:
-            has_text = any(doc[i].get_text("words") for i in range(min(5, doc.page_count)))
-            sizes = [[doc[i].rect.width, doc[i].rect.height] for i in range(doc.page_count)]
-            meta = {
-                "id": doc_id,
-                "name": Path(file.filename or "document.pdf").name,
-                "pages": doc.page_count,
-                "sizes": sizes,
-                "lang": pdfproc.detect_language(doc),
-                "has_text": has_text,
-            }
-        doc.close()
-        (d / "pages").mkdir(parents=True, exist_ok=True)
-        (d / "doc.pdf").write_bytes(raw)
-        meta_path.write_text(json.dumps(meta))
-    return json.loads(meta_path.read_text())
+    meta = ingest(raw, Path(file.filename or "document.pdf").name)
+    # Remember where the file lives so a page refresh can pick up a newer version.
+    if not meta.get("source") or not Path(meta["source"]).is_file():
+        _locate(meta)
+    return _public(meta)
 
 
 @app.get("/api/docs/{doc_id}")
 def doc_meta(doc_id: str):
-    return json.loads((_doc_dir(doc_id) / "meta.json").read_text())
+    return _public(_load_meta(doc_id))
+
+
+def _read_stable(path: Path) -> tuple[bytes, list[int]] | None:
+    """Read a file that may be in the middle of being rewritten (e.g. by LaTeX)."""
+    before = _stat(path)
+    time.sleep(0.2)
+    raw = path.read_bytes()
+    if _stat(path) != before or b"%%EOF" not in raw[-2048:]:
+        return None
+    return raw, before
+
+
+@app.get("/api/docs/{doc_id}/latest")
+def latest(doc_id: str):
+    """The newest version of a document: if its file changed on disk, load that."""
+    meta = _load_meta(doc_id)
+    source = Path(meta["source"]) if meta.get("source") else None
+    try:
+        if source is None or not source.is_file():
+            source = _locate(meta)  # not located yet, or moved
+            if source is None:
+                return _public(meta)
+        # Same path, same modification time and size as when it was loaded: nothing new.
+        if _stat(source) == meta.get("source_stat"):
+            return _public(meta)
+        read = _read_stable(source)
+        if read is None:  # still being written; the next refresh will get it
+            return _public(meta)
+        raw, stat = read
+        if _doc_id(raw) == doc_id:  # touched but not changed
+            meta["source_stat"] = stat
+            _save_meta(meta)
+            return _public(meta)
+        new = ingest(raw, source.name)
+    except (OSError, HTTPException) as exc:
+        print(f"[update] could not check {meta.get('source')}: {exc!r}")
+        return _public(meta)
+    new["source"], new["source_stat"] = str(source), stat
+    _save_meta(new)
+    return {**_public(new), "replaces": doc_id}
 
 
 @app.get("/api/docs/{doc_id}/pages/{n}/layout")
@@ -412,12 +553,27 @@ def warm_up():
     threading.Thread(target=run, daemon=True).start()
 
 
+class FreshStatic(StaticFiles):
+    """Static files the browser must revalidate, so an updated app is never served stale."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 @app.get("/")
 def index():
-    return FileResponse(ROOT / "static" / "index.html", headers={"Cache-Control": "no-cache"})
+    # Stamp the script and stylesheet URLs with their modification time: browsers
+    # otherwise keep using a cached copy for hours after the files change.
+    static = ROOT / "static"
+    html = (static / "index.html").read_text()
+    for name in ("app.js", "style.css"):
+        html = html.replace(f"/static/{name}", f"/static/{name}?v={(static / name).stat().st_mtime_ns}")
+    return Response(html, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
-app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+app.mount("/static", FreshStatic(directory=ROOT / "static"), name="static")
 
 
 if __name__ == "__main__":

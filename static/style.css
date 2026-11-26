@@ -170,3 +170,4 @@ body.dragging #viewer { outline: 3px dashed var(--accent); outline-offset: -8px;
   .speed input[type=range] { width: 84px; }
   .voice select { max-width: 130px; }
 }
+#toast.info { background: var(--accent); color: var(--accent-fg); }

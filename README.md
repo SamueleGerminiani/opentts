@@ -36,6 +36,9 @@ From a terminal (any platform): `./run.sh`, which runs until you press Ctrl-C.
 - **Ignore** menu: figures, tables, captions, displayed formulas, headers/footers/footnotes,
   citation marks like `[12]`, text in `(round brackets)`. Ignored areas are shaded on the page; clicking one still reads it.
 - The reading position of each document is remembered.
+- **Refreshing the page reloads the PDF if its file changed on disk** (handy while a document is still
+  being written, e.g. recompiled from LaTeX), keeping the reading position. The file is found by name through
+  Spotlight (macOS only); hover the page counter to see whether a document is followed.
 
 Keyboard: `Space` play/pause · `←` `→` previous/next sentence · `Esc` stop · `-` `+` speed.
 

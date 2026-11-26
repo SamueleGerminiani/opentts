@@ -52,9 +52,10 @@ function setState(s) {
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = s === "playing" || s === "loading" ? "playing" : s === "paused" ? "paused" : "none";
 }
 
-function toast(msg) {
+function toast(msg, kind = "error") {
   const t = $("toast");
   t.textContent = msg;
+  t.className = kind;
   t.hidden = false;
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => (t.hidden = true), 5000);
@@ -99,6 +100,9 @@ function showDoc(meta) {
   consumed.clear();
   localStorage.setItem("opentts.last", doc.id);
   document.title = doc.name + " — OpenTTS";
+  $("pageInfo").title = doc.tracked
+    ? `${doc.name} — if this file changes on disk, refreshing the page loads the new version`
+    : `${doc.name} — the original file was not located on disk, so refreshing will not pick up changes`;
 
   $("empty").hidden = true;
   pagesEl.textContent = "";
@@ -808,7 +812,16 @@ loadVoices();
   const last = localStorage.getItem("opentts.last");
   if (!last) return;
   try {
-    const r = await fetch("/api/docs/" + last);
-    if (r.ok && !doc) showDoc(await r.json());
+    // "latest" also checks whether the PDF file changed on disk since it was opened.
+    const r = await fetch("/api/docs/" + last + "/latest");
+    if (!r.ok || doc) return;
+    const meta = await r.json();
+    if (meta.replaces) {
+      // A newer version: keep the reading position, as far as it still exists.
+      const pos = localStorage.getItem("opentts.pos." + meta.replaces);
+      if (pos) localStorage.setItem("opentts.pos." + meta.id, pos);
+    }
+    showDoc(meta);
+    if (meta.replaces) toast(`Loaded the updated version of ${meta.name}`, "info");
   } catch {}
 })();
